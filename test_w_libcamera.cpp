@@ -16,6 +16,7 @@ int main(){
 	shared_ptr<libcamera::Camera> camera = cm.get(cm.cameras()[0]->id());
 	if(!camera){
 		cerr <<"Failed to get the camera." << endl;
+		cm.stop();
 		return -1;
 	}
 	
@@ -26,5 +27,10 @@ int main(){
 	}
 	
 	cout << "Camera acquired:" << camera->id() << endl;
+	if (camera->stop()){
+		cerr << "Failed to stop camera" << endl;
+	}
+	cm.stop();
+	return 0;
 
 }
