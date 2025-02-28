@@ -27,9 +27,13 @@ int main(){
 	}
 	
 	cout << "Camera acquired:" << camera->id() << endl;
+	
 	if (camera->stop()){
 		cerr << "Failed to stop camera" << endl;
 	}
+	
+	camera->configure(nullptr);
+	camera->release();
 	cm.stop();
 	return 0;
 
