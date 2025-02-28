@@ -1,5 +1,6 @@
-#include<iostream>
-#include<libcamera/libcamera.h>
+#include <iostream>
+#include <libcamera/libcamera.h>
+#include <fstream>
 
 using namespace libcamera;
 using namespace std;
@@ -27,9 +28,39 @@ int main(){
 	}
 	
 	cout << "Camera acquired:" << camera->id() << endl;
+	unique_ptr<CameraConfiguration> config = camera->generateConfiguration({StreamRole::VideoRecording});
 	
-	if (camera->stop()){
-		cerr << "Failed to stop camera" << endl;
+	if (!config || config->size()==0){
+		cerr << "Failed to generate camera configuration" << endl;
+		camera->release();
+		cm.stop();
+		return -1;
+	}
+	
+	if (camera->configure(config.get())){
+		cerr << "Failed to configure camera" << endl;
+		camera->release();
+		cm.stop();
+		return -1;
+	}
+	
+	Stream *stream = config->at(0).stream();
+	unique_ptr<Request> request = camera->createRequest();
+	
+	FrameBufferAllocator allocator(camera);
+	allocator.allocate(stream);
+	const vector<unique_ptr<FrameBuffer>> &buffers = allocator.buffers(stream);
+	request->addBuffer(stream, buffers[0].get());
+	cout << "Waiting for frame ..." << endl;
+	FrameBuffer *buffer = request->findBuffer(stream);
+	if (buffer) {
+		cout << "Frame captured successfully!" << endl;
+		ofstream output("captured_image.raw", ios::binary);
+		Span<const uint8_t> memory = buffer->planes()[0].mem;
+		output.write(reinterpret_cast<const char *>(memory.data()),memory.size());
+		output.close();
+	}else{
+		cerr << "Failed to retrieve frame buffer" << endl;
 	}
 	
 	camera->configure(nullptr);
