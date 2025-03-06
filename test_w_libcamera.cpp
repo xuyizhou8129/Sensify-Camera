@@ -20,8 +20,8 @@ int main(){
 		cm.stop();
 		return -1;
 	}
-	
-	if (camera->acquire()){
+	int ret = camera->acquire();
+	if (ret){
 		cerr << "Failed to acquire camera" << endl;
 		cm.stop();
 		return -1;
@@ -47,23 +47,31 @@ int main(){
 	Stream *stream = config->at(0).stream();
 	unique_ptr<Request> request = camera->createRequest();
 	
-	FrameBufferAllocator allocator(camera);
-	allocator.allocate(stream);
-	const vector<unique_ptr<FrameBuffer>> &buffers = allocator.buffers(stream);
+	FrameBufferAllocator *allocator = new FrameBufferAllocator(camera);
+	ret = allocator->allocate(stream);
+	if (ret < 0) {
+		cerr << "Failed to allocate Buffer" << endl;
+		camera->release();
+		delete allocator;
+		return ret;
+	}
+	
+	const vector<unique_ptr<FrameBuffer>> &buffers = allocator->buffers(stream);
 	request->addBuffer(stream, buffers[0].get());
 	cout << "Waiting for frame ..." << endl;
 	FrameBuffer *buffer = request->findBuffer(stream);
 	if (buffer) {
 		cout << "Frame captured successfully!" << endl;
 		ofstream output("captured_image.raw", ios::binary);
-		Span<const uint8_t> memory = buffer->planes()[0].mem;
+		const libcamera::FrameBuffer::Plane &plane = buffer->planes()[0];
+		int fd = plane.fd.get();
+		
 		output.write(reinterpret_cast<const char *>(memory.data()),memory.size());
 		output.close();
 	}else{
 		cerr << "Failed to retrieve frame buffer" << endl;
 	}
 	
-	camera->configure(nullptr);
 	camera->release();
 	cm.stop();
 	return 0;
